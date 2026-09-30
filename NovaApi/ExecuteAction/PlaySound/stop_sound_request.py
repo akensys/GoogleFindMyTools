@@ -9,14 +9,13 @@ from NovaApi.scopes import NOVA_ACTION_API_SCOPE
 from example_data_provider import get_example_data
 
 
-def stop_sound_request(canonic_device_id, gcm_registration_id):
-    return create_sound_request(False, canonic_device_id, gcm_registration_id)
+def stop_sound(canonic_device_id):
+    """Stop a device's sound and return the Nova API response."""
+    fcm_token = FcmReceiver().get_registration_token()
+    hex_payload = create_sound_request(False, canonic_device_id, fcm_token)
+    return nova_request(NOVA_ACTION_API_SCOPE, hex_payload)
 
 
 if __name__ == '__main__':
     sample_canonic_device_id = get_example_data("sample_canonic_device_id")
-
-    fcm_token = FcmReceiver().register_for_location_updates( lambda x: print(x) )
-
-    hex_payload = stop_sound_request(sample_canonic_device_id, fcm_token)
-    nova_request(NOVA_ACTION_API_SCOPE, hex_payload)
+    stop_sound(sample_canonic_device_id)

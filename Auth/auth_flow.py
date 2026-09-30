@@ -4,6 +4,7 @@
 #
 
 from selenium.webdriver.support.ui import WebDriverWait
+from Auth.google_login import automate_google_sign_in
 from chrome_driver import create_driver
 
 def request_oauth_account_token_flow():
@@ -13,9 +14,6 @@ def request_oauth_account_token_flow():
 > For macOS users only: Make that you allow Python (or PyCharm) to control Chrome if prompted. 
     """)
 
-    # Press enter to continue
-    input("[AuthFlow] Press Enter to continue...")
-
     # Automatically install and set up the Chrome driver
     print("[AuthFlow] Installing ChromeDriver...")
 
@@ -24,6 +22,13 @@ def request_oauth_account_token_flow():
     try:
         # Open the browser and navigate to the URL
         driver.get("https://accounts.google.com/EmbeddedSetup")
+
+        automate_google_sign_in(
+            driver,
+            completed=lambda current_driver: (
+                current_driver.get_cookie("oauth_token") is not None
+            ),
+        )
 
         # Wait until the "oauth_token" cookie is set
         print("[AuthFlow] Waiting for 'oauth_token' cookie to be set...")

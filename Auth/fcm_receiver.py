@@ -49,11 +49,21 @@ class FcmReceiver:
 
 
     def register_for_location_updates(self, callback):
+        token = self.get_registration_token()
+        self.location_update_callbacks.append(callback)
+        return token
 
+
+    def unregister_from_location_updates(self, callback):
+        try:
+            self.location_update_callbacks.remove(callback)
+        except ValueError:
+            pass
+
+
+    def get_registration_token(self):
         if not self._listening:
             self._start_listener_in_background()
-
-        self.location_update_callbacks.append(callback)
 
         return self.credentials['fcm']['registration']['token']
 
@@ -87,7 +97,7 @@ class FcmReceiver:
             # Convert to hex string
             hex_string = binascii.hexlify(decoded_bytes).decode('utf-8')
 
-            for callback in self.location_update_callbacks:
+            for callback in list(self.location_update_callbacks):
                 callback(hex_string)
         else:
             print("[FCMReceiver] Payload not found in the notification.")
@@ -130,11 +140,14 @@ class FcmReceiver:
         self._loop_thread = threading.Thread(target=self._run_event_loop_in_thread, daemon=True)
         self._loop_thread.start()
 
-        # Register for FCM first (blocking)
-        temp_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(temp_loop)
-        temp_loop.run_until_complete(self._register_for_fcm())
-        temp_loop.close()
+        # Register on the dedicated background loop. Creating and running a
+        # second loop in this thread fails when called from FastAPI/Uvicorn,
+        # whose event loop is already running.
+        registration = asyncio.run_coroutine_threadsafe(
+            self._register_for_fcm(),
+            self._loop,
+        )
+        registration.result()
 
         # Now start the listener in the background loop
         asyncio.run_coroutine_threadsafe(self.pc.start(), self._loop)

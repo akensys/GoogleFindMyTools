@@ -3,8 +3,7 @@
 #  Copyright © 2024 Leon Böttger. All rights reserved.
 #
 
-import asyncio
-import time
+import threading
 
 from Auth.fcm_receiver import FcmReceiver
 from NovaApi.ExecuteAction.LocateTracker.decrypt_locations import decrypt_location_response_locations
@@ -30,12 +29,13 @@ def create_location_request(canonic_device_id, fcm_registration_id, request_uuid
     return hex_payload
 
 
-def get_location_data_for_device(canonic_device_id, name):
+def get_location_data_for_device(canonic_device_id, name, timeout_seconds=60):
 
     print(f"[LocationRequest] Requesting location data for {name}...")
 
     result = None
     request_uuid = generate_random_uuid()
+    response_received = threading.Event()
 
     def handle_location_response(response):
         nonlocal result
@@ -43,18 +43,27 @@ def get_location_data_for_device(canonic_device_id, name):
 
         if device_update.fcmMetadata.requestUuid == request_uuid:
             print("[LocationRequest] Location request successful. Decrypting locations...")
-            result = parse_device_update_protobuf(response)
-            #print_device_update_protobuf(response)
+            result = device_update
+            response_received.set()
 
-    fcm_token = FcmReceiver().register_for_location_updates(handle_location_response)
+    receiver = FcmReceiver()
+    fcm_token = receiver.register_for_location_updates(handle_location_response)
 
-    hex_payload = create_location_request(canonic_device_id, fcm_token, request_uuid)
-    nova_request(NOVA_ACTION_API_SCOPE, hex_payload)
+    try:
+        hex_payload = create_location_request(canonic_device_id, fcm_token, request_uuid)
+        api_response = nova_request(NOVA_ACTION_API_SCOPE, hex_payload)
 
-    while result is None:
-        time.sleep(0.1)
+        if api_response is None:
+            print(f"[LocationRequest] Unable to send the location request for {name}.")
+            return False
 
-    decrypt_location_response_locations(result)
+        if not response_received.wait(timeout_seconds):
+            print(f"[LocationRequest] No response for {name} after {timeout_seconds} seconds.")
+            return False
+
+        return decrypt_location_response_locations(result)
+    finally:
+        receiver.unregister_from_location_updates(handle_location_response)
 
 if __name__ == '__main__':
     get_location_data_for_device(get_example_data("sample_canonic_device_id"), "Test")

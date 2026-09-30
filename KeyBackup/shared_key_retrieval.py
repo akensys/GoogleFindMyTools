@@ -14,10 +14,10 @@ def _retrieve_shared_key():
 > Make that you allow Python (or PyCharm) to control Chrome (macOS only).
     """)
 
-    # Press enter to continue
-    input("[SharedKeyRetrieval] Press 'Enter' to continue...")
-
     shared_key = request_shared_key_flow()
+
+    if not shared_key:
+        raise RuntimeError("Google authentication returned no shared key.")
 
     return shared_key
 
