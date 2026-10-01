@@ -18,6 +18,7 @@ class TrackerService:
         self.config = config
         self.location_publisher = location_publisher
         self._devices = {}
+        self._devices_by_serial = {}
         self._devices_lock = threading.RLock()
         self._stop_event = threading.Event()
         self._monitor_thread = None
@@ -47,17 +48,34 @@ class TrackerService:
         devices = get_canonic_ids(parse_device_list_protobuf(result_hex))
         with self._devices_lock:
             self._devices = {device_id: name for name, device_id in devices}
+            self._devices_by_serial = {
+                serial_number.upper(): (device_id, name)
+                for name, device_id in devices
+                if (serial_number := self._extract_serial_number(name)) is not None
+            }
         return self.list_devices()
 
     def list_devices(self):
         with self._devices_lock:
             return [
-                {"device_id": device_id, "name": name}
+                {
+                    "device_id": device_id,
+                    "name": name,
+                    "serial_number": self._extract_serial_number(name),
+                }
                 for device_id, name in self._devices.items()
             ]
 
-    def locate(self, device_id, timeout_seconds=None, publish=True):
-        name = self._get_device_name(device_id)
+    def locate(self, serial_number, timeout_seconds=None, publish=True):
+        device_id, name = self._get_device_by_serial(serial_number)
+        return self._locate_device(
+            device_id,
+            name,
+            timeout_seconds=timeout_seconds,
+            publish=publish,
+        )
+
+    def _locate_device(self, device_id, name, timeout_seconds=None, publish=True):
         serial_number = self._extract_serial_number(name)
         locations = get_location_data_for_device(
             device_id,
@@ -88,8 +106,8 @@ class TrackerService:
             "location": location,
         }
 
-    def start_sound(self, device_id):
-        name = self._get_device_name(device_id)
+    def start_sound(self, serial_number):
+        device_id, name = self._get_device_by_serial(serial_number)
         if start_sound(device_id) is None:
             raise RuntimeError(f"Unable to send the start sound command to {name}.")
         return {
@@ -100,8 +118,8 @@ class TrackerService:
             "accepted": True,
         }
 
-    def stop_sound(self, device_id):
-        name = self._get_device_name(device_id)
+    def stop_sound(self, serial_number):
+        device_id, name = self._get_device_by_serial(serial_number)
         if stop_sound(device_id) is None:
             raise RuntimeError(f"Unable to send the stop sound command to {name}.")
         return {
@@ -121,16 +139,17 @@ class TrackerService:
         )
         return match.group(1) if match else None
 
-    def _get_device_name(self, device_id):
+    def _get_device_by_serial(self, serial_number):
+        normalized_serial = serial_number.strip().upper()
         with self._devices_lock:
-            name = self._devices.get(device_id)
-        if name is None:
+            device = self._devices_by_serial.get(normalized_serial)
+        if device is None:
             self.refresh_devices()
             with self._devices_lock:
-                name = self._devices.get(device_id)
-        if name is None:
-            raise DeviceNotFoundError(device_id)
-        return name
+                device = self._devices_by_serial.get(normalized_serial)
+        if device is None:
+            raise DeviceNotFoundError(serial_number)
+        return device
 
     def _monitor_loop(self):
         while not self._stop_event.is_set():
@@ -141,7 +160,7 @@ class TrackerService:
                     if self._stop_event.is_set():
                         return
                     try:
-                        self.locate(device["device_id"])
+                        self._locate_device(device["device_id"], device["name"])
                     except Exception as error:
                         print(f"[Monitor] Failed to locate {device['name']}: {error}")
                     if index < len(devices) - 1:
