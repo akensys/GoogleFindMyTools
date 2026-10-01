@@ -1,0 +1,67 @@
+name: Preprod Deploy Google Find Hub
+
+on:
+  push:
+    branches:
+      - preprod
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  deploy-preprod:
+    runs-on: [self-hosted, linux, x64, preprod, vps13]
+
+    concurrency:
+      group: deploy-vps13-preprod-google-find-hub
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set short SHA
+        id: vars
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+          docker login ghcr.io \
+            -u "${{ github.actor }}" \
+            --password-stdin
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ghcr.io/akensys/google-find-hub:${{ steps.vars.outputs.short_sha }} \
+            .
+
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/akensys/google-find-hub:${{ steps.vars.outputs.short_sha }}
+
+      - name: Deploy Google Find Hub on VPS13
+        env:
+          GOOGLE_FIND_HUB_VERSION: ${{ steps.vars.outputs.short_sha }}
+        run: |
+          APP_DIR="/home/ubuntu/myoty"
+
+          cd "$APP_DIR"
+
+          sed -i \
+            "s|^GOOGLE_FIND_HUB_VERSION=.*|GOOGLE_FIND_HUB_VERSION=${GOOGLE_FIND_HUB_VERSION}|" \
+            .env
+
+          docker compose pull google-find-hub
+          docker compose up -d google-find-hub
+
+      - name: Cleanup Docker
+        run: |
+          docker builder prune -af --keep-storage 5GB
+
+          docker images ghcr.io/akensys/google-find-hub \
+            --format '{{.Repository}}:{{.Tag}}' \
+            | grep -v ':latest$' \
+            | tail -n +3 \
+            | xargs -r docker rmi || true

@@ -1,0 +1,95 @@
+name: Prod Deploy Google Find Hub
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: read
+
+jobs:
+  deploy-prod:
+    runs-on: [self-hosted, linux, x64, prod, vps14]
+
+    concurrency:
+      group: deploy-vps14-prod-google-find-hub
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install semantic-release
+        run: |
+          npm install --no-save \
+            semantic-release \
+            @semantic-release/commit-analyzer \
+            @semantic-release/release-notes-generator \
+            @semantic-release/github
+
+      - name: Run semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npx semantic-release
+
+      - name: Read latest Google Find Hub version
+        id: vars
+        run: |
+          VERSION=$(git describe --tags --abbrev=0 --match "google-find-hub-v*")
+          VERSION=${VERSION#google-find-hub-v}
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+          docker login ghcr.io \
+            -u "${{ github.actor }}" \
+            --password-stdin
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ghcr.io/akensys/google-find-hub:${{ steps.vars.outputs.version }} \
+            -t ghcr.io/akensys/google-find-hub:latest \
+            .
+
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/akensys/google-find-hub:${{ steps.vars.outputs.version }}
+          docker push ghcr.io/akensys/google-find-hub:latest
+
+      - name: Deploy Google Find Hub on VPS14
+        env:
+          GOOGLE_FIND_HUB_VERSION: ${{ steps.vars.outputs.version }}
+        run: |
+          APP_DIR="/home/ubuntu/myoty"
+
+          cd "$APP_DIR"
+
+          sed -i \
+            "s|^GOOGLE_FIND_HUB_VERSION=.*|GOOGLE_FIND_HUB_VERSION=${GOOGLE_FIND_HUB_VERSION}|" \
+            .env
+
+          docker compose pull google-find-hub
+          docker compose up -d google-find-hub
+
+      - name: Cleanup Docker
+        run: |
+          docker builder prune -af --keep-storage 5GB
+
+          docker images ghcr.io/akensys/google-find-hub \
+            --format '{{.Repository}}:{{.Tag}}' \
+            | grep -v ':latest$' \
+            | tail -n +3 \
+            | xargs -r docker rmi || true
