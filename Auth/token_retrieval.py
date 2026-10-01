@@ -7,11 +7,16 @@ import gpsoauth
 
 from Auth.aas_token_retrieval import get_aas_token
 from Auth.fcm_receiver import FcmReceiver
+from Auth.username_provider import get_username
 
 
 def request_token(username, scope, play_services = False):
 
     aas_token = get_aas_token()
+    # On first startup, the authentication flow stores the account email while
+    # generating the AAS token. Refresh it here instead of keeping the empty
+    # value that was read before that flow started.
+    username = username or get_username()
     android_id = FcmReceiver().get_android_id()
     request_app = 'com.google.android.gms' if play_services else 'com.google.android.apps.adm'
 

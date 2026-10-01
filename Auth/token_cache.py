@@ -40,8 +40,9 @@ def set_cached_value(name: str, value: str):
 
     if os.path.exists(secrets_file):
         with open(secrets_file, 'r') as file:
+            content = file.read().strip()
             try:
-                data = json.load(file)
+                data = json.loads(content) if content else {}
             except json.JSONDecodeError:
                 raise Exception("Could not read secrets file. Aborting.")
     else:
