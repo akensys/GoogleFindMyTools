@@ -14,6 +14,7 @@ from Auth.google_login import (
     save_auth_diagnostic,
     select_security_device_if_requested,
     submit_lockscreen_pin_if_requested,
+    wait_for_google_session,
 )
 from KeyBackup.response_parser import get_fmdn_shared_key
 from KeyBackup.shared_key_request import get_security_domain_request_url
@@ -30,6 +31,7 @@ def request_shared_key_flow():
             completed=lambda current_driver: "myaccount.google.com" in current_driver.current_url,
         )
         print("[SharedKeyFlow] Signed in successfully.")
+        wait_for_google_session(driver)
 
         # Open the security domain request URL
         # Inject JavaScript interface

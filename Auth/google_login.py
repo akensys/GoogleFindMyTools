@@ -78,6 +78,30 @@ def automate_google_sign_in(driver, completed, timeout=300):
     raise TimeoutError("Google authentication did not complete within 5 minutes.")
 
 
+def wait_for_google_session(driver, timeout=60):
+    """Wait until Google has finished establishing the authenticated session."""
+    authentication_cookies = {
+        "SID",
+        "SAPISID",
+        "__Secure-1PSID",
+        "__Secure-3PSID",
+    }
+
+    WebDriverWait(driver, timeout).until(
+        lambda current_driver: (
+            current_driver.execute_script("return document.readyState") == "complete"
+            and any(
+                cookie.get("name") in authentication_cookies
+                for cookie in current_driver.get_cookies()
+            )
+        )
+    )
+    # Let Google's redirects and cookie synchronization settle before opening
+    # the encryption-unlock page.
+    time.sleep(2)
+    print("[GoogleLogin] Google session is ready.")
+
+
 def submit_lockscreen_pin_if_requested(driver, timeout=60):
     pin = os.getenv("GOOGLE_LOCKSCREEN_PIN", "")
     if not pin:
@@ -102,8 +126,16 @@ def submit_lockscreen_pin_if_requested(driver, timeout=60):
     field.clear()
     field.send_keys(pin)
     _pause_before_action()
-    if not _click_action(driver, ("Suivant", "Next")):
-        raise RuntimeError("Unable to submit the Google lock-screen PIN.")
+    try:
+        WebDriverWait(driver, 30).until(
+            lambda current_driver: _click_action(
+                current_driver, ("Suivant", "Next")
+            )
+        )
+    except TimeoutException as error:
+        raise RuntimeError(
+            "Unable to submit the Google lock-screen PIN."
+        ) from error
     print("[GoogleLogin] Lock-screen PIN submitted.")
     return True
 
