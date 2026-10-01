@@ -1,4 +1,4 @@
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 
 from Service.config import CONFIG
@@ -12,15 +12,6 @@ tracker_service = TrackerService(CONFIG, location_publisher)
 
 app = FastAPI(title="GoogleFindMyTools API", version="1.0.0")
 
-
-def require_api_key(x_api_key: str | None = Header(default=None)):
-    if CONFIG.api_key and x_api_key != CONFIG.api_key:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key.",
-        )
-
-
 @app.on_event("startup")
 def startup():
     tracker_service.start()
@@ -31,7 +22,7 @@ def shutdown():
     tracker_service.stop()
 
 
-@app.post("/locate/{device_id}", dependencies=[Depends(require_api_key)])
+@app.post("/locate/{device_id}")
 async def locate(device_id: str, timeout_seconds: int | None = Query(default=None, ge=1, le=180)):
     try:
         return await run_in_threadpool(tracker_service.locate, device_id, timeout_seconds)
@@ -46,7 +37,7 @@ async def locate(device_id: str, timeout_seconds: int | None = Query(default=Non
         raise HTTPException(status_code=502, detail=str(error)) from error
 
 
-@app.post("/start-sound/{device_id}/", dependencies=[Depends(require_api_key)])
+@app.post("/start-sound/{device_id}/")
 async def sound_start(device_id: str):
     try:
         return await run_in_threadpool(tracker_service.start_sound, device_id)
@@ -61,7 +52,7 @@ async def sound_start(device_id: str):
         raise HTTPException(status_code=502, detail=str(error)) from error
 
 
-@app.post("/stop-sound/{device_id}/", dependencies=[Depends(require_api_key)])
+@app.post("/stop-sound/{device_id}/")
 async def sound_stop(device_id: str):
     try:
         return await run_in_threadpool(tracker_service.stop_sound, device_id)

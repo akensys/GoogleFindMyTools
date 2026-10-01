@@ -49,10 +49,6 @@ _MQTT_HOST, _MQTT_PORT, _MQTT_TLS = _get_mqtt_endpoint()
 
 @dataclass(frozen=True)
 class ServiceConfig:
-    api_base_url: str = os.getenv("API_BASE_URL", "http://127.0.0.1")
-    api_port: int = int(os.getenv("API_PORT", "8080"))
-    api_key: str = _get_env("API_CONNECT_PLUS_API_KEY", "API_KEY")
-
     mqtt_host: str = _MQTT_HOST
     mqtt_port: int = _MQTT_PORT
     mqtt_topic: str = _get_env(
@@ -76,10 +72,5 @@ class ServiceConfig:
     mqtt_tls: bool = _MQTT_TLS
     device_interval_seconds: int = 2
     monitor_interval_seconds: int = 2
-
-    @property
-    def api_host(self):
-        return urlparse(self.api_base_url).hostname or "127.0.0.1"
-
 
 CONFIG = ServiceConfig()
