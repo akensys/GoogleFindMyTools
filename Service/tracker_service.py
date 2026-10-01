@@ -114,7 +114,11 @@ class TrackerService:
 
     @staticmethod
     def _extract_serial_number(name):
-        match = re.search(r"\bSN\s*[:#=_-]?\s*(\d+)\b", name, re.IGNORECASE)
+        match = re.search(
+            r"\bSN\s*[:#=_-]?\s*([A-Z0-9]+)\b",
+            name,
+            re.IGNORECASE,
+        )
         return match.group(1) if match else None
 
     def _get_device_name(self, device_id):
