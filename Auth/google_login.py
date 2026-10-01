@@ -10,18 +10,15 @@ from selenium.common.exceptions import (
     TimeoutException,
 )
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 
 
 load_dotenv()
 
 
-def _action_delay():
-    return max(0.0, float(os.getenv("SELENIUM_ACTION_DELAY_SECONDS", "2")))
-
-
 def _pause_before_action():
-    time.sleep(_action_delay())
+    time.sleep(2)
 
 
 class GoogleCredentialsError(RuntimeError):
@@ -29,11 +26,14 @@ class GoogleCredentialsError(RuntimeError):
 
 
 def get_google_credentials():
-    email = os.getenv("GOOGLE_EMAIL", "").strip()
-    password = os.getenv("GOOGLE_PASSWORD", "")
+    email = os.getenv("CONNECT_PLUS_EMAIL", os.getenv("GOOGLE_EMAIL", "")).strip()
+    password = os.getenv(
+        "CONNECT_PLUS_PASSWORD", os.getenv("GOOGLE_PASSWORD", "")
+    )
     if not email or not password:
         raise GoogleCredentialsError(
-            "GOOGLE_EMAIL and GOOGLE_PASSWORD must be configured in .env."
+            "CONNECT_PLUS_EMAIL and CONNECT_PLUS_PASSWORD must be configured "
+            "in .env."
         )
     return email, password
 
@@ -103,7 +103,10 @@ def wait_for_google_session(driver, timeout=60):
 
 
 def submit_lockscreen_pin_if_requested(driver, timeout=60):
-    pin = os.getenv("GOOGLE_LOCKSCREEN_PIN", "")
+    pin = os.getenv(
+        "CONNECT_PLUS_LOCKSCREEN_PIN",
+        os.getenv("GOOGLE_LOCKSCREEN_PIN", ""),
+    )
     if not pin:
         return False
 
@@ -126,15 +129,22 @@ def submit_lockscreen_pin_if_requested(driver, timeout=60):
     field.clear()
     field.send_keys(pin)
     _pause_before_action()
+
+    # Submitting from the PIN field is more stable than looking for Google's
+    # button text, whose label and HTML structure vary by language/version.
+    field.send_keys(Keys.ENTER)
     try:
         WebDriverWait(driver, 30).until(
-            lambda current_driver: _click_action(
-                current_driver, ("Suivant", "Next")
+            lambda current_driver: (
+                _lockscreen_pin_or_alert(current_driver) == "alert"
+                or _find_lockscreen_pin(current_driver) is None
             )
         )
     except TimeoutException as error:
+        screenshot = save_auth_diagnostic(driver)
         raise RuntimeError(
-            "Unable to submit the Google lock-screen PIN."
+            "Google did not accept the lock-screen PIN within 30 seconds. "
+            f"Current URL: {driver.current_url}. Screenshot: {screenshot}"
         ) from error
     print("[GoogleLogin] Lock-screen PIN submitted.")
     return True

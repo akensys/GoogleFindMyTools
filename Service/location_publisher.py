@@ -112,6 +112,6 @@ class LocationPublisher:
 
         print(
             f"[LocationPublisher] Location sent for {name} ({device_id}): "
-            f"topic={self.config.mqtt_topic} time={location.get('time')} UTC"
+            f"topic={self.config.mqtt_topic} time={location.get('time')} "
         )
         return True

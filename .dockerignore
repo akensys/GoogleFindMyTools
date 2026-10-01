@@ -1,0 +1,22 @@
+.git
+.github
+.gitignore
+.env
+.env.*
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.log
+*.png
+.idea/
+.vscode/
+
+# Secrets and files generated at runtime
+Auth/secrets.json
+secrets.json
+DULT/OwnerLookup/Results/
+
+# Firmware sources are unrelated to the Python API image
+ESP32Firmware/
+ZephyrFirmware/

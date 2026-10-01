@@ -151,6 +151,7 @@ def decrypt_location_response_locations(device_update_protobuf):
             print(f"Latitude: {latitude}")
             print(f"Longitude: {longitude}")
             print(f"Altitude: {altitude}")
+            print(f"Accuracy: {loc.accuracy}")
             print(f"Google Maps Link: {create_google_maps_link(latitude, longitude)}")
             location_data = {
                 "latitude": latitude,
@@ -164,7 +165,7 @@ def decrypt_location_response_locations(device_update_protobuf):
             tz=datetime.timezone.utc,
         )
         formatted_time = location_datetime.strftime("%Y-%m-%d %H:%M:%S")
-        print(f"Time: {formatted_time} UTC")
+        print(f"Time: {formatted_time} ")
         print(f"Status: {loc.status}")
         print(f"Is Own Report: {loc.is_own_report}")
         print("-" * 40)
