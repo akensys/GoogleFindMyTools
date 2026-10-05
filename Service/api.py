@@ -22,12 +22,12 @@ def shutdown():
     tracker_service.stop()
 
 
-@app.post("/locate/{serial_number}")
-async def locate(serial_number: str, timeout_seconds: int | None = Query(default=None, ge=1, le=180)):
+@app.post("/locate/{find_hub_uid}")
+async def locate(find_hub_uid: str, timeout_seconds: int | None = Query(default=None, ge=1, le=180)):
     try:
-        return await run_in_threadpool(tracker_service.locate, serial_number, timeout_seconds)
+        return await run_in_threadpool(tracker_service.locate, find_hub_uid, timeout_seconds)
     except DeviceNotFoundError as error:
-        raise HTTPException(status_code=404, detail="Unknown serial number.") from error
+        raise HTTPException(status_code=404, detail="Unknown Find Hub UID.") from error
     except NovaRateLimitError as error:
         raise HTTPException(
             status_code=429,
@@ -37,12 +37,12 @@ async def locate(serial_number: str, timeout_seconds: int | None = Query(default
         raise HTTPException(status_code=502, detail=str(error)) from error
 
 
-@app.post("/start-sound/{serial_number}")
-async def sound_start(serial_number: str):
+@app.post("/start-sound/{find_hub_uid}")
+async def sound_start(find_hub_uid: str):
     try:
-        return await run_in_threadpool(tracker_service.start_sound, serial_number)
+        return await run_in_threadpool(tracker_service.start_sound, find_hub_uid)
     except DeviceNotFoundError as error:
-        raise HTTPException(status_code=404, detail="Unknown serial number.") from error
+        raise HTTPException(status_code=404, detail="Unknown Find Hub UID.") from error
     except NovaRateLimitError as error:
         raise HTTPException(
             status_code=429,
@@ -52,12 +52,12 @@ async def sound_start(serial_number: str):
         raise HTTPException(status_code=502, detail=str(error)) from error
 
 
-@app.post("/stop-sound/{serial_number}")
-async def sound_stop(serial_number: str):
+@app.post("/stop-sound/{find_hub_uid}")
+async def sound_stop(find_hub_uid: str):
     try:
-        return await run_in_threadpool(tracker_service.stop_sound, serial_number)
+        return await run_in_threadpool(tracker_service.stop_sound, find_hub_uid)
     except DeviceNotFoundError as error:
-        raise HTTPException(status_code=404, detail="Unknown serial number.") from error
+        raise HTTPException(status_code=404, detail="Unknown Find Hub UID.") from error
     except NovaRateLimitError as error:
         raise HTTPException(
             status_code=429,

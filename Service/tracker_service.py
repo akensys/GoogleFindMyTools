@@ -18,7 +18,7 @@ class TrackerService:
         self.config = config
         self.location_publisher = location_publisher
         self._devices = {}
-        self._devices_by_serial = {}
+        self._devices_by_find_hub_uid = {}
         self._devices_lock = threading.RLock()
         self._stop_event = threading.Event()
         self._monitor_thread = None
@@ -48,10 +48,10 @@ class TrackerService:
         devices = get_canonic_ids(parse_device_list_protobuf(result_hex))
         with self._devices_lock:
             self._devices = {device_id: name for name, device_id in devices}
-            self._devices_by_serial = {
-                serial_number.upper(): (device_id, name)
+            self._devices_by_find_hub_uid = {
+                find_hub_uid.upper(): (device_id, name)
                 for name, device_id in devices
-                if (serial_number := self._extract_serial_number(name)) is not None
+                if (find_hub_uid := self._extract_find_hub_uid(name)) is not None
             }
         return self.list_devices()
 
@@ -61,13 +61,13 @@ class TrackerService:
                 {
                     "device_id": device_id,
                     "name": name,
-                    "serial_number": self._extract_serial_number(name),
+                    "find_hub_uid": self._extract_find_hub_uid(name),
                 }
                 for device_id, name in self._devices.items()
             ]
 
-    def locate(self, serial_number, timeout_seconds=None, publish=True):
-        device_id, name = self._get_device_by_serial(serial_number)
+    def locate(self, find_hub_uid, timeout_seconds=None, publish=True):
+        device_id, name = self._get_device_by_find_hub_uid(find_hub_uid)
         return self._locate_device(
             device_id,
             name,
@@ -76,7 +76,7 @@ class TrackerService:
         )
 
     def _locate_device(self, device_id, name, timeout_seconds=None, publish=True):
-        serial_number = self._extract_serial_number(name)
+        find_hub_uid = self._extract_find_hub_uid(name)
         locations = get_location_data_for_device(
             device_id,
             name,
@@ -96,42 +96,42 @@ class TrackerService:
             self.location_publisher.publish_location(
                 device_id,
                 name,
-                serial_number,
+                find_hub_uid,
                 location,
             )
         return {
             "device_id": device_id,
             "object_name": name,
-            "object_serial_number": serial_number,
+            "find_hub_uid": find_hub_uid,
             "location": location,
         }
 
-    def start_sound(self, serial_number):
-        device_id, name = self._get_device_by_serial(serial_number)
+    def start_sound(self, find_hub_uid):
+        device_id, name = self._get_device_by_find_hub_uid(find_hub_uid)
         if start_sound(device_id) is None:
             raise RuntimeError(f"Unable to send the start sound command to {name}.")
         return {
             "device_id": device_id,
             "object_name": name,
-            "object_serial_number": self._extract_serial_number(name),
+            "find_hub_uid": self._extract_find_hub_uid(name),
             "command": "start_sound",
             "accepted": True,
         }
 
-    def stop_sound(self, serial_number):
-        device_id, name = self._get_device_by_serial(serial_number)
+    def stop_sound(self, find_hub_uid):
+        device_id, name = self._get_device_by_find_hub_uid(find_hub_uid)
         if stop_sound(device_id) is None:
             raise RuntimeError(f"Unable to send the stop sound command to {name}.")
         return {
             "device_id": device_id,
             "object_name": name,
-            "object_serial_number": self._extract_serial_number(name),
+            "find_hub_uid": self._extract_find_hub_uid(name),
             "command": "stop_sound",
             "accepted": True,
         }
 
     @staticmethod
-    def _extract_serial_number(name):
+    def _extract_find_hub_uid(name):
         match = re.search(
             r"\bSN\s*[:#=_-]?\s*([A-Z0-9]+)\b",
             name,
@@ -139,16 +139,16 @@ class TrackerService:
         )
         return match.group(1) if match else None
 
-    def _get_device_by_serial(self, serial_number):
-        normalized_serial = serial_number.strip().upper()
+    def _get_device_by_find_hub_uid(self, find_hub_uid):
+        normalized_find_hub_uid = find_hub_uid.strip().upper()
         with self._devices_lock:
-            device = self._devices_by_serial.get(normalized_serial)
+            device = self._devices_by_find_hub_uid.get(normalized_find_hub_uid)
         if device is None:
             self.refresh_devices()
             with self._devices_lock:
-                device = self._devices_by_serial.get(normalized_serial)
+                device = self._devices_by_find_hub_uid.get(normalized_find_hub_uid)
         if device is None:
-            raise DeviceNotFoundError(serial_number)
+            raise DeviceNotFoundError(find_hub_uid)
         return device
 
     def _monitor_loop(self):

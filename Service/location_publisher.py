@@ -69,14 +69,14 @@ class LocationPublisher:
         if reason_code != 0:
             print(f"[LocationPublisher] MQTT connection lost: {reason_code}")
 
-    def publish_location(self, device_id, name, serial_number, location):
+    def publish_location(self, device_id, name, find_hub_uid, location):
         if not self.enabled or not location:
             return False
 
         payload = {
             "device_id": device_id,
             "object_name": name,
-            "object_serial_number": serial_number,
+            "find_hub_uid": find_hub_uid,
             "location": location,
         }
 
